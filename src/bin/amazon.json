@@ -1,0 +1,11 @@
+{
+  "data_len": 256,
+  "threshold": 0.001,
+  "server0": "SERVER0_IP_ADDRESS_GOES_HERE:9100",
+  "server1": "SERVER0_IP_ADDRESS_GOES_HERE:9101",
+  "addkey_batch_size": 300,
+  "sketch_batch_size": 100000,
+  "sketch_batch_size_last": 25000,
+  "num_sites": 10000,
+  "zipf_exponent": 1.03
+}
