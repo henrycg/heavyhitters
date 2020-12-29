@@ -1,5 +1,12 @@
 # README
 
+## WARNING: This is not production-ready code.
+
+This is software for a research prototype. Please
+do *NOT* use this code in production.
+
+## Background
+
 This is the source code that accompanies the paper
 >  "Lightweight Techniques for Private Heavy Hitters".  
 > by Dan Boneh, Elette Boyle, Henry Corrigan-Gibbs, Niv Gilboa, and Yuval Ishai.  
