@@ -26,12 +26,12 @@ use rayon::prelude::*;
 use tarpc::{
     client,
     context,
+    serde_transport::tcp,
+    tokio_serde::formats::Bincode,
     //server::{self, Channel},
 };
 
 use rand::distributions::Alphanumeric;
-use tokio::net::TcpStream;
-use tokio_serde::formats::Bincode;
 
 use std::time::{Duration, SystemTime};
 
@@ -97,8 +97,8 @@ async fn tree_init(
 
 async fn add_keys(
     cfg: &config::Config,
-    mut client0: counttree::CollectorClient,
-    mut client1: counttree::CollectorClient,
+    client0: counttree::CollectorClient,
+    client1: counttree::CollectorClient,
     keys0: &[sketch::SketchDPFKey<fastfield::FE,FieldElm>],
     keys1: &[sketch::SketchDPFKey<fastfield::FE,FieldElm>],
     nreqs: usize,
@@ -333,39 +333,27 @@ async fn final_shares(
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    //println!("Using only one thread!");
-    //rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
+    println!("Using only one thread!");
+    rayon::ThreadPoolBuilder::new().num_threads(1).build_global().unwrap();
 
     env_logger::init();
     let (cfg, _, nreqs) = config::get_args("Leader", false, true);
     debug_assert_eq!(cfg.data_len % 8, 0);
 
-    let mut builder = native_tls::TlsConnector::builder();
-    // XXX THERE IS NO CERTIFICATE VALIDATION HERE!!!
-    // This is just for benchmarking purposes. A real implementation would
-    // have pinned certificates for the two servers and use those to encrypt.
-    builder.danger_accept_invalid_certs(true);
-
-    let cx = builder.build().unwrap();
-    let cx = tokio_native_tls::TlsConnector::from(cx);
-
-    let tcp0 = TcpStream::connect(cfg.server0).await?;
-    let io0 = cx.connect("server0", tcp0).await.unwrap();
-    let transport0 = tarpc::serde_transport::Transport::from((io0, Bincode::default()));
-
-    let tcp1 = TcpStream::connect(cfg.server1).await?;
-    let io1 = cx.connect("server1", tcp1).await.unwrap();
-    let transport1 = tarpc::serde_transport::Transport::from((io1, Bincode::default()));
-
-    //let transport0 = tarpc::serde_transport::tcp::connect(cfg.server0, Bincode::default()).await?;
-
+    // XXX WARNING: THERE IS NO TLS HERE!!!
     let mut client0 =
-        counttree::CollectorClient::new(client::Config::default(), transport0).spawn()?;
+        counttree::CollectorClient::new(client::Config::default(), 
+                                        tcp::connect(cfg.server0, Bincode::default).await?
+                                        ).spawn();
     let mut client1 =
-        counttree::CollectorClient::new(client::Config::default(), transport1).spawn()?;
+        counttree::CollectorClient::new(client::Config::default(), 
+                                        tcp::connect(cfg.server1, Bincode::default).await?
+                                        ).spawn();
 
     let start = Instant::now();
+    println!("Generating keys...");
     let (keys0, keys1) = generate_keys(&cfg);
+    println!("Done.");
     let delta = start.elapsed().as_secs_f64();
     println!(
         "Generated {:?} keys in {:?} seconds ({:?} sec/key)",

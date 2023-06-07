@@ -30,10 +30,9 @@ use std::{
 use tarpc::{
     context,
     server::{self, Channel},
+    tokio_serde::formats::Bincode,
+    serde_transport::tcp,
 };
-
-use tokio::net::TcpListener;
-use tokio_serde::formats::Bincode;
 
 #[derive(Clone)]
 struct CollectorServer {
@@ -211,13 +210,6 @@ async fn main() -> io::Result<()> {
     // XXX This is bogus
     let seed = prg::PrgSeed { key: [1u8; 16] };
 
-    let der = include_bytes!("identity.p12");
-    // XXX This password is also bogus.
-    let cert = native_tls::Identity::from_pkcs12(der, "mypass").unwrap();
-
-    let acc = native_tls::TlsAcceptor::builder(cert).build().unwrap();
-    let tls_acceptor = tokio_native_tls::TlsAcceptor::from(acc);
-
     let coll = collect::KeyCollection::new(&seed, cfg.data_len);
     let arc = Arc::new(Mutex::new(coll));
     let arc_mul = Arc::new(Mutex::new(mpc::ManyMulState::zero()));
@@ -226,13 +218,12 @@ async fn main() -> io::Result<()> {
     let mut server_addr = server_addr;
     // Listen on any IP
     server_addr.set_ip("0.0.0.0".parse().expect("Could not parse"));
-    TcpListener::bind(&server_addr)
+    tcp::listen(&server_addr, Bincode::default)
         .await?
         // Ignore accept errors.
         .filter_map(|r| future::ready(r.ok()))
-        .map(|channel| async {
-            let tls_acceptor = tls_acceptor.clone();
-            let socket = tls_acceptor.accept(channel).await.unwrap();
+        .map(server::BaseChannel::with_defaults)
+        .map(|channel| {
             let coll_server = CollectorServer {
                 server_idx,
                 seed: seed.clone(),
@@ -242,18 +233,7 @@ async fn main() -> io::Result<()> {
                 arc_mul_last: arc_mul_last.clone(),
             };
 
-            let socket = tarpc::serde_transport::Transport::from((socket, Bincode::default()));
-            let server = server::BaseChannel::with_defaults(socket);
-            let (tx, rx) = futures::channel::oneshot::channel();
-            tokio::spawn(async move {
-                server.respond_with(coll_server.serve()).execute().await;
-                //assert!(tx.send(()).is_ok());
-                print!("Sending");
-                tx.send(()).unwrap();
-            });
-            let a = rx.await;
-            print!("Received");
-            a
+            channel.execute(coll_server.serve())
         })
         .buffer_unordered(100)
         .for_each(|_| async {})
