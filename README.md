@@ -12,6 +12,8 @@ This is the source code that accompanies the paper
 > by Dan Boneh, Elette Boyle, Henry Corrigan-Gibbs, Niv Gilboa, and Yuval Ishai.  
 > _IEEE Symposium on Security and Privacy 2021_
 
+The commit used in the paper is [ddcdc2a736160bfd](https://github.com/henrycg/heavyhitters/commit/ddcdc2a736160bfdfb55003ad8059124b13ee73d). Since then, since some of the dependencies changed, I stripped out the TLS encryption between the parties so that the code still compiles. (If anyone is interested in working TLS back in here, please open a pull request!)
+
 For questions about the code, please contact Henry at:  henrycg {at} csail {dot} mit {dot} edu.
 
 We have tested this code with:
